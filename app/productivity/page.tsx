@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { CsvExportButton } from "@/components/csv-export-button";
 import { EmptyRow, NoDataState } from "@/components/empty-state";
 import { PageBody, PageHeader } from "@/components/page-header";
 import { PeriodFilter } from "@/components/period-filter";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { productivityRows } from "@/lib/calc/aggregate";
 import { availableMonths, availableYears, periodLabel, sum } from "@/lib/calc/model";
+import { csvFilename } from "@/lib/csv";
 import { MONTH_NAMES } from "@/lib/domain/types";
 import { hours, money, percent, rate } from "@/lib/format";
 import { periodQuery, readPeriod } from "@/lib/period";
@@ -40,14 +42,46 @@ export default async function ProductivityPage(props: PageProps<"/productivity">
         title="Productivity"
         description={`${periodLabel(filter, MONTH_NAMES)} · billable hours as a share of everything logged`}
         actions={
-          <Suspense>
-            <PeriodFilter
-              years={availableYears(model)}
-              months={availableMonths(model, filter.year)}
-              year={filter.year}
-              month={filter.month}
+          <>
+            <CsvExportButton
+              filename={csvFilename(
+                selectedDepartment ? `productivity-${selectedDepartment}` : "productivity",
+                periodLabel(filter, MONTH_NAMES),
+              )}
+              headers={[
+                "Employee No.",
+                "Name",
+                "Department",
+                "Designation",
+                "Total hours",
+                "Billable hours",
+                "Internal hours",
+                "Productivity %",
+                "Salary (AED)",
+                "Cost (AED)",
+              ]}
+              rows={rows.map((row) => [
+                row.empNo,
+                row.empName,
+                row.department,
+                row.designation,
+                round(row.totalHours),
+                round(row.billableHours),
+                round(row.nonBillableHours),
+                row.productivity === null ? null : round(row.productivity * 100),
+                row.salary === null ? null : round(row.salary, 2),
+                round(row.cost, 2),
+              ])}
             />
-          </Suspense>
+            <Suspense>
+              <PeriodFilter
+                years={availableYears(model)}
+                months={availableMonths(model, filter.year)}
+                year={filter.year}
+                month={filter.month}
+              />
+            </Suspense>
+          </>
         }
       />
 
@@ -145,6 +179,10 @@ export default async function ProductivityPage(props: PageProps<"/productivity">
       </PageBody>
     </>
   );
+}
+
+function round(value: number, digits = 1): number {
+  return Number(value.toFixed(digits));
 }
 
 function DepartmentChip({

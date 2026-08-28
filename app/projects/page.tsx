@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { CsvExportButton } from "@/components/csv-export-button";
 import { EmptyRow, NoDataState } from "@/components/empty-state";
 import { PageBody, PageHeader } from "@/components/page-header";
 import { PeriodFilter } from "@/components/period-filter";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { projectRollups } from "@/lib/calc/aggregate";
 import { availableMonths, availableYears, periodLabel, sum } from "@/lib/calc/model";
+import { csvFilename } from "@/lib/csv";
 import { MONTH_NAMES } from "@/lib/domain/types";
 import { hours, marginTone, money, percent, projectLabel } from "@/lib/format";
 import { periodQuery, readPeriod } from "@/lib/period";
@@ -33,14 +35,43 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
         title="Projects"
         description={`${periodLabel(filter, MONTH_NAMES)} · ${projects.length} project${projects.length === 1 ? "" : "s"} with activity`}
         actions={
-          <Suspense>
-            <PeriodFilter
-              years={availableYears(model)}
-              months={availableMonths(model, filter.year)}
-              year={filter.year}
-              month={filter.month}
+          <>
+            <CsvExportButton
+              filename={csvFilename("projects", periodLabel(filter, MONTH_NAMES))}
+              headers={[
+                "Ref Code",
+                "Project",
+                "Category",
+                "Status",
+                "Hours",
+                "Price (AED)",
+                "Revenue (AED)",
+                "Cost (AED)",
+                "Profit (AED)",
+                "Margin %",
+              ]}
+              rows={projects.map((project) => [
+                project.refCode,
+                project.name,
+                project.category,
+                project.status,
+                round(project.hours),
+                project.price,
+                project.price === null ? null : round(project.revenue, 2),
+                round(project.cost, 2),
+                project.price === null ? null : round(project.profit, 2),
+                project.marginPct === null ? null : round(project.marginPct * 100),
+              ])}
             />
-          </Suspense>
+            <Suspense>
+              <PeriodFilter
+                years={availableYears(model)}
+                months={availableMonths(model, filter.year)}
+                year={filter.year}
+                month={filter.month}
+              />
+            </Suspense>
+          </>
         }
       />
 
@@ -141,4 +172,8 @@ export default async function ProjectsPage(props: PageProps<"/projects">) {
       </PageBody>
     </>
   );
+}
+
+function round(value: number, digits = 1): number {
+  return Number(value.toFixed(digits));
 }

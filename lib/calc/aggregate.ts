@@ -10,6 +10,9 @@ import {
   type PeriodFilter,
 } from "@/lib/calc/model";
 
+/** Timesheet rows carry a department, but it isn't guaranteed to be filled in. */
+export const UNASSIGNED = "Unassigned";
+
 /* ------------------------------------------------------------------ revenue */
 
 export type ProjectHours = {
@@ -238,11 +241,11 @@ export function projectDetail(model: Model, refCode: string): ProjectDetail | nu
     })
     .sort((a, b) => b.hours - a.hours);
 
-  const departments = [...groupBy(rows, (row) => row.department ?? "Unassigned").values()]
+  const departments = [...groupBy(rows, (row) => row.department ?? UNASSIGNED).values()]
     .map<DepartmentContribution>((group) => {
       const departmentHours = sum(group, (row) => row.hours);
       return {
-        department: group[0].department ?? "Unassigned",
+        department: group[0].department ?? UNASSIGNED,
         hours: departmentHours,
         cost: sum(group, (row) => row.cost),
         share: hours > 0 ? departmentHours / hours : 0,
@@ -337,6 +340,82 @@ export function productivityRows(model: Model, filter: PeriodFilter): Productivi
   }
 
   return result.sort((a, b) => (b.productivity ?? -1) - (a.productivity ?? -1));
+}
+
+/* --------------------------------------------------------------- departments */
+
+export type DepartmentRollup = {
+  department: string;
+  people: number;
+  hours: number;
+  billableHours: number;
+  nonBillableHours: number;
+  productivity: number | null;
+  cost: number;
+  /** Share of the period's total hours. */
+  share: number;
+  /** Fully-loaded cost per billable hour delivered. */
+  costPerBillableHour: number | null;
+};
+
+export function departmentRollups(model: Model, filter: PeriodFilter): DepartmentRollup[] {
+  const rows = filterRows(model, filter);
+  const totalHours = sum(rows, (row) => row.hours);
+
+  return [...groupBy(rows, (row) => row.department ?? UNASSIGNED).values()]
+    .map<DepartmentRollup>((group) => {
+      const hours = sum(group, (row) => row.hours);
+      const billableHours = sum(group, (row) => (row.billable ? row.hours : 0));
+      const cost = sum(group, (row) => row.cost);
+      return {
+        department: group[0].department ?? UNASSIGNED,
+        people: new Set(group.map((row) => row.empNo)).size,
+        hours,
+        billableHours,
+        nonBillableHours: hours - billableHours,
+        productivity: hours > 0 ? billableHours / hours : null,
+        cost,
+        share: totalHours > 0 ? hours / totalHours : 0,
+        costPerBillableHour: billableHours > 0 ? cost / billableHours : null,
+      };
+    })
+    .sort((a, b) => b.hours - a.hours);
+}
+
+export type DepartmentDetail = DepartmentRollup & {
+  members: ProductivityRow[];
+  /** Projects the department worked on, biggest contribution first. */
+  projects: { refCode: string; name: string; hours: number; cost: number }[];
+};
+
+export function departmentDetail(
+  model: Model,
+  filter: PeriodFilter,
+  department: string,
+): DepartmentDetail | null {
+  const rollup = departmentRollups(model, filter).find((row) => row.department === department);
+  if (!rollup) return null;
+
+  const rows = filterRows(model, filter).filter(
+    (row) => (row.department ?? UNASSIGNED) === department,
+  );
+
+  const members = productivityRows(model, filter).filter((row) => row.department === department);
+
+  const priceByRef = new Map(model.store.prices.map((price) => [price.refCode, price]));
+  const projects = [...groupBy(
+    rows.filter((row) => row.billable && row.refCode),
+    (row) => row.refCode!,
+  ).values()]
+    .map((group) => ({
+      refCode: group[0].refCode!,
+      name: priceByRef.get(group[0].refCode!)?.name ?? group[0].taskName ?? group[0].refCode!,
+      hours: sum(group, (row) => row.hours),
+      cost: sum(group, (row) => row.cost),
+    }))
+    .sort((a, b) => b.hours - a.hours);
+
+  return { ...rollup, members, projects };
 }
 
 /* ---------------------------------------------------------------- categories */

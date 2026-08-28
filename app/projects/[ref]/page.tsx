@@ -2,12 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { CsvExportButton } from "@/components/csv-export-button";
 import { PageBody, PageHeader, SectionTitle } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { projectDetail } from "@/lib/calc/aggregate";
+import { csvFilename } from "@/lib/csv";
 import { monthName, shortMonthLabel, type MonthNumber } from "@/lib/domain/types";
 import { hours, marginTone, money, percent, projectLabel, rate } from "@/lib/format";
 import { loadModel } from "@/lib/server/load";
@@ -45,13 +47,42 @@ export default async function ProjectPage(props: PageProps<"/projects/[ref]">) {
           </span>
         }
         actions={
-          <Link
-            href={`/projects${search ? `?${search}` : ""}`}
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm"
-          >
-            <ArrowLeft className="size-4" />
-            All projects
-          </Link>
+          <>
+            <CsvExportButton
+              filename={csvFilename(project.refCode, "contributions")}
+              headers={[
+                "Employee No.",
+                "Name",
+                "Department",
+                "Designation",
+                "Hours",
+                "Share of project %",
+                "Revenue share (AED)",
+                "Cost (AED)",
+                "Profit (AED)",
+                "Profitability %",
+              ]}
+              rows={project.employees.map((employee) => [
+                employee.empNo,
+                employee.empName,
+                employee.department,
+                employee.designation,
+                round(employee.hours),
+                project.hours > 0 ? round((employee.hours / project.hours) * 100) : null,
+                project.price === null ? null : round(employee.revenueShare, 2),
+                round(employee.cost, 2),
+                project.price === null ? null : round(employee.profit, 2),
+                employee.profitabilityPct === null ? null : round(employee.profitabilityPct * 100),
+              ])}
+            />
+            <Link
+              href={`/projects${search ? `?${search}` : ""}`}
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm"
+            >
+              <ArrowLeft className="size-4" />
+              All projects
+            </Link>
+          </>
         }
       />
 
@@ -96,7 +127,7 @@ export default async function ProjectPage(props: PageProps<"/projects/[ref]">) {
                   <li key={department.department}>
                     <div className="flex items-baseline justify-between gap-3 text-sm">
                       <Link
-                        href={`/productivity?department=${encodeURIComponent(department.department)}`}
+                        href={`/departments/${encodeURIComponent(department.department)}`}
                         className="font-medium underline-offset-4 hover:underline"
                       >
                         {department.department}
@@ -191,6 +222,10 @@ export default async function ProjectPage(props: PageProps<"/projects/[ref]">) {
       </PageBody>
     </>
   );
+}
+
+function round(value: number, digits = 1): number {
+  return Number(value.toFixed(digits));
 }
 
 function MonthlyEffort({

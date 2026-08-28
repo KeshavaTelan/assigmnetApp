@@ -2,13 +2,22 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { BarChart3, FolderKanban, LayoutDashboard, Layers, Upload, Users } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  FolderKanban,
+  LayoutDashboard,
+  Layers,
+  Upload,
+  Users,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
+  { href: "/departments", label: "Departments", icon: Building2 },
   { href: "/productivity", label: "Productivity", icon: Users },
   { href: "/categories", label: "Categories", icon: Layers },
   { href: "/upload", label: "Data", icon: Upload },

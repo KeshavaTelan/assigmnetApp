@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { CsvExportButton } from "@/components/csv-export-button";
 import { EmptyRow, NoDataState } from "@/components/empty-state";
 import { PageBody, PageHeader, SectionTitle } from "@/components/page-header";
 import { PeriodFilter } from "@/components/period-filter";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { categoryRows } from "@/lib/calc/aggregate";
 import { availableMonths, availableYears, periodLabel, sum } from "@/lib/calc/model";
+import { csvFilename } from "@/lib/csv";
 import { MONTH_NAMES } from "@/lib/domain/types";
 import { hours, money, percent } from "@/lib/format";
 import { readPeriod } from "@/lib/period";
@@ -32,14 +34,28 @@ export default async function CategoriesPage(props: PageProps<"/categories">) {
         title="Categories"
         description={`${periodLabel(filter, MONTH_NAMES)} · where the time actually goes`}
         actions={
-          <Suspense>
-            <PeriodFilter
-              years={availableYears(model)}
-              months={availableMonths(model, filter.year)}
-              year={filter.year}
-              month={filter.month}
+          <>
+            <CsvExportButton
+              filename={csvFilename("categories", periodLabel(filter, MONTH_NAMES))}
+              headers={["Category", "Treatment", "Hours", "Share %", "People", "Value (AED)"]}
+              rows={rows.map((row) => [
+                row.category,
+                row.billable ? "Billable" : "Absorbed",
+                round(row.hours),
+                round(row.share * 100),
+                row.people,
+                round(row.value, 2),
+              ])}
             />
-          </Suspense>
+            <Suspense>
+              <PeriodFilter
+                years={availableYears(model)}
+                months={availableMonths(model, filter.year)}
+                year={filter.year}
+                month={filter.month}
+              />
+            </Suspense>
+          </>
         }
       />
 
@@ -136,4 +152,8 @@ export default async function CategoriesPage(props: PageProps<"/categories">) {
       </PageBody>
     </>
   );
+}
+
+function round(value: number, digits = 1): number {
+  return Number(value.toFixed(digits));
 }
